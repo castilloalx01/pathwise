@@ -6,7 +6,7 @@ from google import genai
 import json
 
 # Get key from environmental GEMINI_API_KEY
-client = genai.Client(api_key="AIzaSyBaciCvno_5_7WwMlqQBhT9cwTNgBt1T1I")
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Optional Databricks
 USE_DATABRICKS = os.getenv("USE_DATABRICKS", "false").lower() == "true"
@@ -22,7 +22,7 @@ SCORECARD_KEY  = os.getenv("SCORECARD_API_KEY")
 SCORECARD_BASE = "https://api.data.gov/ed/collegescorecard/v1/schools"
 
 # --- Local SQLite fallback (dev)
-SQLITE_DB = "database.db"
+SQLITE_DB = os.getenv("SQLITE_DB", "database.db")
 
 # --- Databricks catalog/schema (defaults)
 DB_CATALOG = os.getenv("DB_CATALOG", "hive_metastore")
@@ -652,10 +652,15 @@ def logout():
     return redirect(url_for("index"))
 
 # ========== MAIN ==========
+# Runs on import too, so it also happens under gunicorn (Render)
+with app.app_context():
+    create_tables()
+    # Seed once if empty (optional)
+    if not exec_query(f"SELECT 1 FROM {TB_SCHOOLS} LIMIT 1"):
+        try:
+            seed_top_schools(limit=1000)
+        except Exception as e:
+            print("School seeding skipped:", e)
+
 if __name__ == "__main__":
-    with app.app_context():
-        create_tables()
-        # Seed once if empty (optional)
-        if not exec_query(f"SELECT 1 FROM {TB_SCHOOLS} LIMIT 1"):
-             seed_top_schools(limit=1000)
     app.run(debug=True)
